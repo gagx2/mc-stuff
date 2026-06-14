@@ -53,6 +53,32 @@ native guest-OS-update feature and no general task scheduler — guest updates c
 in-guest (above). Keeping the **Proxmox host** itself updated is a separate, deliberate task
 (it's Debian; auto-reboot on the hypervisor is discouraged since it takes down all VMs).
 
+## Other Dokploy projects on reboot
+
+Verified 2026-06-14. The Dokploy stack is **Docker Swarm**; apps/databases are Swarm
+services (auto-reconciled on boot), compose deploys rely on restart policies.
+
+| Project | On reboot | Note |
+|---|---|---|
+| home-assistant | ✅ clean | compose, `restart=unless-stopped` |
+| expense-tracker (backend + postgres) | ✅ recovers | Swarm; backend may crash-loop briefly waiting for its DB, then comes up |
+| imggen (ui + mongo) | ⚠️ recovers, but loses its custom **Tailscale DNS** (`100.100.100.100`) on every (re)deploy → the per-minute **"Fix Tailscale DNS after deploy"** Dokploy schedule re-adds it (a `docker service update --dns-add`, which reschedules the task). Durable fix would be persistent DNS in the Dokploy app config. |
+| crafty / Minecraft | ✅ clean | restart policies + jar perms fixed |
+
+### Traefik heal-on-boot
+`dokploy-traefik` (standalone, `restart=always`) **intermittently** fails on a cold reboot
+with `attaching to network failed: context deadline exceeded` — a stale `dokploy-network`
+overlay endpoint — and stays down, taking **all web UIs** with it (Minecraft is unaffected;
+it bypasses traefik). Installed [`infra/setup-traefik-heal.sh`](../infra/setup-traefik-heal.sh)
+(run once with sudo): a systemd oneshot (`dokploy-traefik-heal.service`) that runs ~45s after
+Docker on every boot and, only if traefik is down, heals it
+(`docker network disconnect -f dokploy-network dokploy-traefik` → `start` → reconnect).
+Check after a boot: `journalctl -u dokploy-traefik-heal.service`.
+
+> ⚠️ **Never** `docker network disconnect` the `lb-<network>` sandbox (shows as
+> `dokploy-network-endpoint`) — it's the Swarm overlay VIP load-balancer; removing it breaks
+> all service-to-service routing on the overlay and only `sudo systemctl restart docker` rebuilds it.
+
 ## Operating it
 
 - **Logs:** `/var/log/unattended-upgrades/` and `journalctl -u apt-daily-upgrade.service`.

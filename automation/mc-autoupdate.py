@@ -54,6 +54,21 @@ def read_plugin_yml_version(jar_path: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
+def read_installed_build(jar_path: str) -> int | None:
+    """Build number for Geyser-family jars: git.properties git.build.number
+    (Geyser), else a `b<NN>` tag in the plugin.yml version (Floodgate, whose
+    version reads e.g. '2.2.5-SNAPSHOT (b132-5a72b6a)')."""
+    b = read_git_build_number(jar_path)
+    if b is not None:
+        return b
+    ver = read_plugin_yml_version(jar_path)
+    if ver:
+        m = re.search(r"b(\d+)", ver)
+        if m:
+            return int(m.group(1))
+    return None
+
+
 # --------------------------------------------------------------------------- #
 # Version comparison
 # --------------------------------------------------------------------------- #
@@ -143,6 +158,9 @@ def http_download(url: str, dest: str, expected_sha256: str | None = None,
         if not zipfile.is_zipfile(tmp):
             raise ValueError(f"downloaded file is not a valid jar/zip: {url}")
         os.replace(tmp, dest)
+        # mkstemp creates 0600 root-owned files; the server runs as the 'crafty'
+        # user and must be able to READ the jar — make it world-readable.
+        os.chmod(dest, 0o644)
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
@@ -259,7 +277,7 @@ def _find_jar(plugins_dir: str, pattern: str) -> str | None:
 def update_one_geyser(plugins_dir: str, project: str, jar_name: str, log, dry_run: bool) -> bool:
     """Geyser/Floodgate: compare git.build.number, replace in place if newer."""
     path = os.path.join(plugins_dir, jar_name)
-    installed = read_git_build_number(path) if os.path.exists(path) else None
+    installed = read_installed_build(path) if os.path.exists(path) else None
     latest = geyser_latest(project)
     if installed is not None and installed >= latest["build"]:
         log(f"[ok] {project}: build {installed} up to date")

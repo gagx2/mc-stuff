@@ -27,3 +27,15 @@ def test_read_plugin_yml_version(jar_factory):
 def test_read_plugin_yml_version_quoted(jar_factory):
     jar = jar_factory("V.jar", {"plugin.yml": "name: V\nversion: '5.9.1'\n"})
     assert mcupd.read_plugin_yml_version(jar) == "5.9.1"
+
+
+def test_read_installed_build_from_git_properties(jar_factory):
+    jar = jar_factory("Geyser-Spigot.jar", {"git.properties": "git.build.number=1165\n"})
+    assert mcupd.read_installed_build(jar) == 1165
+
+
+def test_read_installed_build_floodgate_from_plugin_yml(jar_factory):
+    # Floodgate has no git.properties; build is the b<NN> in its version string.
+    jar = jar_factory("floodgate-spigot.jar",
+                      {"plugin.yml": "name: floodgate\nversion: 2.2.5-SNAPSHOT (b132-5a72b6a)\n"})
+    assert mcupd.read_installed_build(jar) == 132

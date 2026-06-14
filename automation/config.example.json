@@ -11,5 +11,5 @@
   "keep_logs": 30,
   "update_plugins": true,
   "update_paper": true,
-  "restart": true
+  "restart_mode": "on-change"
 }

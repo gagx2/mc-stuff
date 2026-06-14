@@ -64,7 +64,7 @@ Each component has a different "is there something newer?" gate. Nothing is touc
 | **Crafty image** | `registry.gitlab.com/crafty-controller/crafty-4:latest` | **Image digest** changed | `docker pull`; if `.Id` changed, redeploy via Dokploy webhook `P4G6U5tnpT1UbETaPDfcx` (recreates container; volumes persist) |
 | **playit image** | `ghcr.io/playit-cloud/playit-agent:1.0` | **Image digest** changed | `docker pull`; if `.Id` changed, redeploy via Dokploy webhook `FohNmoNN_pzIgkfljoAJo` |
 
-**Update order within a run is intentional:** plugins update **before** Paper, so the newest Geyser/Floodgate/Via are already in place when Paper rides up to a newer Minecraft version. The MC server is restarted **once** at the end (nightly memory hygiene + loads any swapped jars).
+**Update order within a run is intentional:** plugins update **before** Paper, so the newest Geyser/Floodgate/Via are already in place when Paper rides up to a newer Minecraft version. The MC server is restarted at the end **only when something was actually updated** (`restart_mode: on-change`, the default) — so on a typical "nothing new" night the server is left running untouched. Set `restart_mode: always` for an unconditional nightly restart, or `never` to disable restarts.
 
 ### Paper specifics
 
@@ -87,7 +87,7 @@ In order, each step gated:
    - Geyser, Floodgate — `update_one_geyser`: read installed build from the jar, GET the GeyserMC latest-build JSON; if `latest.build > installed`, download `…/downloads/spigot`, validate zip, atomic replace.
    - ViaVersion, ViaBackwards — `update_one_via`: read installed `plugin.yml` version, GET the GitHub latest release; if the tag is newer (`semver_newer`), download the `.jar` asset and remove the old versioned jar.
 2. **Paper** (`update_paper`): `find_latest_paper` walks Fill v3 (highest STABLE MC version first, `select_stable_build` picks the newest stable build old enough); `_paper_newer` compares to the tracked state; if newer → backup, download+verify, `PATCH`, persist new state.
-3. **Restart** (`restart_server`): always issued at the end unless `--dry-run`. On failure it retries once, then logs an error and the process exits non-zero (so the orchestrator flags it).
+3. **Restart** (`restart_server`): gated by `should_restart(restart_mode, changed)`. With the default `restart_mode: on-change` it restarts **only when a plugin or Paper update was actually applied** (the jar swap needs a restart to load); a no-op run logs `[restart] skipped — nothing updated` and leaves the server running. On a real restart, failure retries once, then logs an error and exits non-zero (so the orchestrator flags it). `--dry-run` never restarts.
 
 State lives in `/crafty/import/autoupdate/state.json` (`{"paper": {"version": …, "build": …}}`). On first run it's bootstrapped from the server's current `executable` filename via the Crafty API (`build: 0` forces a refresh to the latest stable).
 
@@ -113,7 +113,7 @@ Lives at **`/crafty/import/autoupdate/config.json`**, **`chmod 600`**, in a root
 | `keep_logs` | How many dated log files to retain (default `30`) |
 | `update_plugins` | Toggle: update Geyser/Floodgate/Via at all (default `true`) |
 | `update_paper` | Toggle: update Paper at all (default `true`) |
-| `restart` | Toggle: restart the server at the end of a run (default `true`) |
+| `restart_mode` | When to restart: **`on-change`** (default — only when a plugin/Paper update was applied), `always` (every run), or `never` |
 
 > The Crafty JWT is the **only** secret in `config.json`. The orchestrator's Dokploy redeploys use **deploy-webhook tokens** (not the API key), so no Dokploy API key is stored on the server. The Dokploy API key is needed **only at install time** and is passed to `deploy.sh` via env (see §7).
 

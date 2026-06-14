@@ -379,6 +379,12 @@ def update_paper(cfg: dict, crafty, state: dict, log, dry_run: bool, now_epoch: 
 # --------------------------------------------------------------------------- #
 # main
 # --------------------------------------------------------------------------- #
+def should_restart(mode: str, changed: bool) -> bool:
+    """Restart policy: 'on-change' (only when an update was applied — default),
+    'always' (every run), or 'never'."""
+    return mode == "always" or (mode == "on-change" and changed)
+
+
 def make_logger(log_dir: str, keep: int):
     os.makedirs(log_dir, exist_ok=True)
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -447,13 +453,19 @@ def main(argv=None) -> int:
         errors += 1
         log(f"[error] paper: {e}")
 
-    if cfg.get("restart", True) and not args.dry_run:
+    mode = cfg.get("restart_mode", "on-change")
+    if args.dry_run:
+        verb = "restart" if should_restart(mode, changed) else "skip restart"
+        log(f"[restart] dry-run; would {verb} (mode={mode}, changed={changed})")
+    elif should_restart(mode, changed):
         ok = crafty.action(cfg["server_id"], "restart_server")
-        log(f"[restart] restart_server -> {'ok' if ok else 'FAILED'}")
+        log(f"[restart] restart_server -> {'ok' if ok else 'FAILED'} (mode={mode}, changed={changed})")
         if not ok:
             ok = crafty.action(cfg["server_id"], "restart_server")
             log(f"[restart] retry -> {'ok' if ok else 'FAILED'}")
         errors += 0 if ok else 1
+    else:
+        log(f"[restart] skipped — nothing updated (mode={mode})")
 
     log(f"=== mc-autoupdate done (changed={changed}, errors={errors}) ===")
     return 1 if errors else 0

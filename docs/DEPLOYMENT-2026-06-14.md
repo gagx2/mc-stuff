@@ -51,6 +51,16 @@ To roll back to 1.21.8: stop the server, restore the world from `pre26-world.tgz
 `execution_command`), set `state.json` `paper` to `1.21.8`, set
 `update_paper:false` in `config.json`, start. See [05-updates-automation.md](05-updates-automation.md) §7.
 
+## Post-deploy change: restart policy → on-change (2026-06-14)
+
+By request, the nightly restart is now **`restart_mode: on-change`** (in
+`config.json`, default in `config.example.json`): the server restarts **only on
+nights an update is actually applied**, not unconditionally. Verified live —
+Paper build 70 dropped during the day: the updater detected it, updated, and
+restarted (`changed=True`); an immediate re-run found everything current and
+logged `[restart] skipped — nothing updated`, leaving the server running. Set
+`restart_mode: always` to restore an unconditional nightly restart.
+
 ## Note on the docs
 
 `docs/01–06` and the spec describe the *mechanism* and the discovery-time

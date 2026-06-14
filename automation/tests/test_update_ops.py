@@ -108,6 +108,14 @@ def test_update_paper_noop_same_build(tmp_path, monkeypatch):
     assert changed is False
 
 
+def test_should_restart():
+    assert mcupd.should_restart("on-change", True) is True
+    assert mcupd.should_restart("on-change", False) is False
+    assert mcupd.should_restart("always", False) is True
+    assert mcupd.should_restart("always", True) is True
+    assert mcupd.should_restart("never", True) is False
+
+
 def test_state_roundtrip(tmp_path):
     p = tmp_path / "state.json"
     mcupd.save_state(str(p), {"paper": {"version": "1.21.8", "build": 60}})

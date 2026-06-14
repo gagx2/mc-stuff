@@ -1,0 +1,15 @@
+{
+  "crafty_base": "https://localhost:8443",
+  "crafty_jwt": "REPLACE_WITH_CRAFTY_JWT",
+  "server_id": "394a3479-b8e9-4f4f-aa36-49c87eafe548",
+  "server_dir": "/crafty/servers/394a3479-b8e9-4f4f-aa36-49c87eafe548",
+  "plugins_dir": "/crafty/servers/394a3479-b8e9-4f4f-aa36-49c87eafe548/plugins",
+  "autoupdate_dir": "/crafty/import/autoupdate",
+  "jvm_args": "-Xms1000M -Xmx2000M",
+  "paper_canonical_jar": "paper.jar",
+  "mc_version_min_age_days": 0,
+  "keep_logs": 30,
+  "update_plugins": true,
+  "update_paper": true,
+  "restart": true
+}

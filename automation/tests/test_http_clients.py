@@ -29,17 +29,40 @@ def test_github_latest_release(monkeypatch):
 
 
 def test_find_latest_paper(monkeypatch):
+    # Fill v3 'versions' is a dict keyed by group, newest-first.
     def fake_get(url, **k):
         if url.endswith("/projects/paper"):
-            return {"versions": ["1.21.8", "1.21.11", "26.1.2"]}
+            return {"versions": {"26.2": ["26.2-rc-2"], "26.1": ["26.1.2"], "1.21": ["1.21.8"]}}
         if url.endswith("/versions/26.1.2/builds"):
             return [{"id": 5, "channel": "STABLE", "time": "2026-06-01T00:00:00Z",
                      "downloads": {"server:default": {"url": "u", "name": "paper-26.1.2-5.jar",
                                    "checksums": {"sha256": "h"}}}}]
+        if url.endswith("/versions/26.1.2"):
+            return {"version": {"java": {"version": {"minimum": 25}}}}
         return []
     monkeypatch.setattr(mcupd, "http_get_json", fake_get)
-    got = mcupd.find_latest_paper(min_age_days=0, now_epoch=2_000_000_000)
+    got = mcupd.find_latest_paper(min_age_days=0, now_epoch=2_000_000_000, java_major=25)
+    # 26.2-rc-2 skipped (pre-release); 26.1.2 chosen (java 25 ok).
     assert got["version"] == "26.1.2" and got["build"] == 5 and got["sha256"] == "h"
+
+
+def test_find_latest_paper_skips_incompatible_java(monkeypatch):
+    def fake_get(url, **k):
+        if url.endswith("/projects/paper"):
+            return {"versions": {"26.1": ["26.1.2"], "1.21": ["1.21.8"]}}
+        if url.endswith("/versions/26.1.2"):
+            return {"version": {"java": {"version": {"minimum": 26}}}}
+        if url.endswith("/versions/1.21.8"):
+            return {"version": {"java": {"version": {"minimum": 21}}}}
+        if url.endswith("/versions/1.21.8/builds"):
+            return [{"id": 60, "channel": "STABLE", "time": "2026-06-01T00:00:00Z",
+                     "downloads": {"server:default": {"url": "u", "name": "n",
+                                   "checksums": {"sha256": "h"}}}}]
+        return []
+    monkeypatch.setattr(mcupd, "http_get_json", fake_get)
+    # JVM is java 25 -> 26.1.2 (needs 26) is skipped, falls back to 1.21.8.
+    got = mcupd.find_latest_paper(min_age_days=0, now_epoch=2_000_000_000, java_major=25)
+    assert got["version"] == "1.21.8" and got["build"] == 60
 
 
 def test_crafty_action_builds_request(monkeypatch):

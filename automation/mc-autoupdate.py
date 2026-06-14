@@ -14,6 +14,7 @@ import json
 import os
 import re
 import ssl
+import subprocess
 import sys
 import tempfile
 import time
@@ -169,11 +170,46 @@ def github_latest_release(repo: str) -> dict:
 PAPER_FILL = "https://fill.papermc.io/v3/projects/paper"
 
 
-def find_latest_paper(min_age_days: int, now_epoch: int, max_versions: int = 5) -> dict | None:
-    """Highest MC version (newest first) that has a usable STABLE build.
-    Returns {version, build, url, sha256, name} or None."""
-    versions = http_get_json(PAPER_FILL).get("versions", [])
-    for v in list(reversed(versions))[:max_versions]:
+def detect_java_major(default: int = 21) -> int:
+    """Major version of the JVM that will launch the server (e.g. 25)."""
+    try:
+        out = subprocess.run(["java", "-version"], capture_output=True, text=True).stderr
+        m = re.search(r'version "(\d+)', out)
+        return int(m.group(1)) if m else default
+    except Exception:
+        return default
+
+
+def _flatten_paper_versions(versions_obj) -> list:
+    """Fill v3 returns versions as {group: [ids...]} (groups newest-first,
+    each list newest-first). Flatten to an ordered list of real release IDs,
+    newest first, skipping pre-releases. Also accepts a plain list (test data)."""
+    if isinstance(versions_obj, dict):
+        out = []
+        for group in versions_obj:
+            out.extend(versions_obj[group])
+    else:
+        out = list(reversed(versions_obj))
+    return [v for v in out if not any(t in v.lower() for t in ("-rc", "-pre", "snapshot"))]
+
+
+def paper_java_minimum(version: str) -> int:
+    meta = http_get_json(f"{PAPER_FILL}/versions/{version}")
+    return int(meta["version"]["java"]["version"]["minimum"])
+
+
+def find_latest_paper(min_age_days: int, now_epoch: int, java_major: int = 999,
+                      max_versions: int = 8) -> dict | None:
+    """Highest non-prerelease MC version with a usable STABLE build that the
+    running JVM (java_major) can launch. Returns {version, build, url, sha256,
+    name} or None."""
+    versions = _flatten_paper_versions(http_get_json(PAPER_FILL).get("versions", []))
+    for v in versions[:max_versions]:
+        try:
+            if paper_java_minimum(v) > java_major:
+                continue
+        except Exception:
+            continue
         builds = http_get_json(f"{PAPER_FILL}/versions/{v}/builds")
         b = select_stable_build(builds, min_age_days, now_epoch)
         if b:
@@ -293,7 +329,7 @@ def _paper_newer(cur_ver: str, cur_build: int, new_ver: str, new_build: int) -> 
 def update_paper(cfg: dict, crafty, state: dict, log, dry_run: bool, now_epoch: int) -> bool:
     cur = state.get("paper", {"version": "0", "build": 0})
     latest = find_latest_paper(min_age_days=cfg.get("mc_version_min_age_days", 0),
-                               now_epoch=now_epoch)
+                               now_epoch=now_epoch, java_major=detect_java_major())
     if not latest:
         log("[warn] paper: no stable build found")
         return False

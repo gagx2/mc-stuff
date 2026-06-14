@@ -14,6 +14,7 @@ This is a **PaperMC 1.21.8** server with **Bedrock (Android/console) support** v
 | Fix "Bedrock/Android players can't connect" / understand the protocol lag | [docs/04-bedrock-connectivity.md](docs/04-bedrock-connectivity.md) |
 | Read the upgrade guide: what updates, the schedule, scripts, manual ops, rollback | [docs/05-updates-automation.md](docs/05-updates-automation.md) |
 | Run an ops procedure: restart, restore a backup, revive playit, rotate keys, triage | [docs/06-runbook.md](docs/06-runbook.md) |
+| Understand VM OS auto-updates + reboot resilience (the Ubuntu/Proxmox layer) | [docs/07-vm-os-updates.md](docs/07-vm-os-updates.md) |
 
 ## Architecture in one paragraph
 

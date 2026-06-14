@@ -55,7 +55,7 @@ import json, sys
 script = open(sys.argv[1]).read()
 body = {"name": "mc-nightly-maintenance", "cronExpression": "30 3 * * *",
         "scheduleType": "dokploy-server", "shellType": "bash", "enabled": True,
-        "organizationId": sys.argv[2], "script": script}
+        "command": "", "organizationId": sys.argv[2], "script": script}
 if sys.argv[3]:
     body["scheduleId"] = sys.argv[3]
 print(json.dumps(body))

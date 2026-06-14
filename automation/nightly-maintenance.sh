@@ -14,13 +14,14 @@ else
   echo "[warn] mc-autoupdate exited non-zero (see /crafty/import/autoupdate/logs)"
 fi
 
-update_image() {  # $1=image  $2=webhookToken  $3=label
-  local img="$1" tok="$2" label="$3" old new
-  old=$(docker image inspect -f '{{.Id}}' "$img" 2>/dev/null || echo none)
+update_image() {  # $1=image  $2=webhookToken  $3=label  $4=container-name-filter
+  local img="$1" tok="$2" label="$3" cfilter="$4" latest cname running
   if ! docker pull "$img" >/dev/null 2>&1; then echo "[warn] pull failed: $img"; return; fi
-  new=$(docker image inspect -f '{{.Id}}' "$img" 2>/dev/null || echo none)
-  if [ "$old" != "$new" ]; then
-    echo "[update] $label image changed ($old -> $new); redeploying"
+  latest=$(docker image inspect -f '{{.Id}}' "$img" 2>/dev/null || echo none)
+  cname=$(docker ps --filter "name=$cfilter" --format '{{.Names}}' | head -1)
+  running=$(docker inspect -f '{{.Image}}' "$cname" 2>/dev/null || echo none)
+  if [ "$running" != "$latest" ]; then
+    echo "[update] $label running image != latest; redeploying ($running -> $latest)"
     if curl -fsS -X POST "http://localhost:3000/api/deploy/compose/$tok" >/dev/null; then
       echo "[ok] $label redeployed"
     else
@@ -32,8 +33,8 @@ update_image() {  # $1=image  $2=webhookToken  $3=label
 }
 
 echo "--- step 2: image updates ---"
-update_image "registry.gitlab.com/crafty-controller/crafty-4:latest" "P4G6U5tnpT1UbETaPDfcx" "crafty"
-update_image "ghcr.io/playit-cloud/playit-agent:1.0" "FohNmoNN_pzIgkfljoAJo" "playit"
+update_image "registry.gitlab.com/crafty-controller/crafty-4:latest" "P4G6U5tnpT1UbETaPDfcx" "crafty" "crafty_container"
+update_image "ghcr.io/playit-cloud/playit-agent:1.0" "FohNmoNN_pzIgkfljoAJo" "playit" "playit"
 
 echo "--- step 3: playit liveness ---"
 if docker ps --format '{{.Names}}' | grep -qi playit; then
